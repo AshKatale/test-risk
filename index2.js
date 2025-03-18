@@ -2,11 +2,21 @@ const { z } = require('zod');
 const { Agent } = require('@openserv-labs/sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// Create the agent with a system prompt explaining its purpose.
+// Create the agent with a system prompt and API key.
 const agent = new Agent({
   systemPrompt: 'You are an agent that performs blockchain token risk analysis by combining on-chain data, contract insights, and market sentiment.',
-  apiKey: "19e9744583aa48a7b02aaba24dda618f"
+  apiKey: process.env.AGENT_API_KEY || "19e9744583aa48a7b02aaba24dda618f"
 });
+
+// Helper function to fetch JSON and log error responses.
+async function fetchWithError(url, options, errorMsg) {
+  const res = await fetch(url, options);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`${errorMsg} Status: ${res.status}. Response: ${text}`);
+  }
+  return res.json();
+}
 
 // Add the riskAnalysis capability with input validation via zod.
 agent.addCapability({
@@ -22,43 +32,39 @@ agent.addCapability({
     // Override chainId to "solana"
     const chainId = "solana";
 
-    // Call the contract analysis API
-    const contractAnalysisResponse = await fetch("https://assure-fi.onrender.com/analyze-contract", {
-      method: "GET",
-      headers: { "contract-address": smart_contract_address },
-    });
-    if (!contractAnalysisResponse.ok) {
-      throw new Error(`Contract analysis failed with status: ${contractAnalysisResponse.status}`);
-    }
-    const contractAnalysisData = await contractAnalysisResponse.json();
+    // Call the contract analysis API.
+    const contractAnalysisData = await fetchWithError(
+      "https://assure-fi.onrender.com/analyze-contract",
+      {
+        method: "GET",
+        headers: { "contract-address": smart_contract_address },
+      },
+      'Contract analysis failed.'
+    );
 
-    // Call the token data API
-    const tokenDataResponse = await fetch(
+    // Call the token data API.
+    const tokenData = await fetchWithError(
       `https://liquidity-monitoring-1.onrender.com/get_token?token_address=${token_address}&chain_id=${chainId}`,
       {
         mode: "cors",
         headers: { "Content-Type": "application/json" },
-      }
+      },
+      'Token data retrieval failed.'
     );
-    if (!tokenDataResponse.ok) {
-      throw new Error(`Token data retrieval failed with status: ${tokenDataResponse.status}`);
-    }
-    const tokenData = await tokenDataResponse.json();
 
     // Call the sentiment analysis API using token_name as the coin.
-    const sentimentUrl = "https://sentiment-agent-1.onrender.com/analyze";
-    const sentimentResponse = await fetch(sentimentUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Coin-Name": token_name
+    const sentimentData = await fetchWithError(
+      "https://sentiment-agent-1.onrender.com/analyze",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Coin-Name": token_name
+        },
+        body: JSON.stringify({ coin: token_name })
       },
-      body: JSON.stringify({ coin: token_name })
-    });
-    if (!sentimentResponse.ok) {
-      throw new Error(`Sentiment analysis failed with status: ${sentimentResponse.status}`);
-    }
-    const sentimentData = await sentimentResponse.json();
+      'Sentiment analysis failed.'
+    );
 
     // Initialize Gemini API with the provided API key.
     const genAI = new GoogleGenerativeAI("AIzaSyA6M-6Ad8ZSIfDN0X5uuTMhNCz6Nr86P3U");
@@ -107,6 +113,7 @@ agent.addCapability({
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const textResponse = await response.text();
+
     // Extract JSON from the Gemini response.
     const jsonMatch = textResponse.match(/({[\s\S]*})/);
     const jsonString = jsonMatch ? jsonMatch[0] : textResponse;
@@ -128,5 +135,5 @@ agent.addCapability({
   }
 });
 
-// Start the agent's HTTP server so that it can process incoming requests.
+// Start the agent's HTTP server to process incoming requests.
 agent.start();
