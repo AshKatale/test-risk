@@ -2,11 +2,10 @@ const { z } = require('zod');
 const { Agent } = require('@openserv-labs/sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-
 // Create the agent with a system prompt explaining its purpose.
 const agent = new Agent({
   systemPrompt: 'You are an agent that performs blockchain token risk analysis by combining on-chain data, contract insights, and market sentiment.',
-  apiKey : "19e9744583aa48a7b02aaba24dda618f"
+  apiKey: "19e9744583aa48a7b02aaba24dda618f"
 });
 
 // Add the riskAnalysis capability with input validation via zod.
@@ -131,22 +130,3 @@ agent.addCapability({
 
 // Start the agent's HTTP server so that it can process incoming requests.
 agent.start();
-
-// Optionally, run a quick test call to the agent.
-// async function main() {
-//   const result = await agent.process({
-//     messages: [
-//       {
-//         role: 'user',
-//         content: JSON.stringify({
-//           token_name: "ExampleToken",
-//           token_address: "0x1234567890abcdef",
-//           smart_contract_address: "0xabcdef1234567890"
-//         })
-//       }
-//     ]
-//   });
-//   console.log('Risk Analysis Result:', result.choices[0].message.content);
-// }
-
-// main().catch(console.error);
